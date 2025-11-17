@@ -10,6 +10,8 @@ import world.isnap.filmpostcard.entity.Postcard;
 import world.isnap.filmpostcard.repository.PostcardRepository;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,6 +22,32 @@ public class PostcardService {
     
     private final PostcardRepository postcardRepository;
     private final FileStorageService fileStorageService;
+    
+    @Transactional
+    public PostcardResponse createPostcardFromImage(String imageFilename, String textContent, String templateType, String qrUrl) throws IOException {
+        // Validate that the image file exists
+        Path imagePath = fileStorageService.getFilePath(imageFilename);
+        if (!Files.exists(imagePath)) {
+            throw new RuntimeException("Image file not found: " + imageFilename);
+        }
+        
+        long fileSize = Files.size(imagePath);
+        
+        // Create postcard entity
+        Postcard postcard = Postcard.builder()
+                .imagePath(imageFilename)
+                .textContent(textContent)
+                .originalFilename(imageFilename)
+                .fileSize(fileSize)
+                .templateType(templateType != null ? templateType : "postcard")
+                .qrUrl(qrUrl)
+                .build();
+        
+        Postcard saved = postcardRepository.save(postcard);
+        log.info("Postcard created from existing image with ID: {}", saved.getId());
+        
+        return toResponse(saved);
+    }
     
     @Transactional
     public PostcardResponse createPostcard(MultipartFile image, String textContent, String templateType, String qrUrl) throws IOException {
@@ -59,6 +87,28 @@ public class PostcardService {
     }
     
     @Transactional
+    public PostcardResponse updatePostcard(Long id, String textContent, String templateType, String qrUrl) {
+        Postcard postcard = postcardRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Postcard not found with id: " + id));
+        
+        // Update fields if provided
+        if (textContent != null) {
+            postcard.setTextContent(textContent);
+        }
+        if (templateType != null) {
+            postcard.setTemplateType(templateType);
+        }
+        if (qrUrl != null) {
+            postcard.setQrUrl(qrUrl);
+        }
+        
+        Postcard updated = postcardRepository.save(postcard);
+        log.info("Postcard updated with ID: {}", updated.getId());
+        
+        return toResponse(updated);
+    }
+    
+    @Transactional
     public void deletePostcard(Long id) throws IOException {
         Postcard postcard = postcardRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Postcard not found with id: " + id));
@@ -76,10 +126,10 @@ public class PostcardService {
             throw new RuntimeException("File is empty");
         }
         
-        // Check file size (max 10MB)
-        long maxSize = 10 * 1024 * 1024;
+        // Check file size (max 30MB)
+        long maxSize = 30 * 1024 * 1024;
         if (file.getSize() > maxSize) {
-            throw new RuntimeException("File size exceeds maximum limit of 10MB");
+            throw new RuntimeException("File size exceeds maximum limit of 30MB");
         }
         
         // Check file type
