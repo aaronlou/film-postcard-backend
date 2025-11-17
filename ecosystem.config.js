@@ -23,7 +23,7 @@ module.exports = {
     name: 'film-postcard-backend',
     script: 'java',
     args: '-jar target/filmpostcard-0.0.1-SNAPSHOT.jar',
-    cwd: '/root/film-postcard-backend',
+    cwd: '/home/admin/film-postcard-backend',
     instances: 1,
     autorestart: true,
     watch: false,
