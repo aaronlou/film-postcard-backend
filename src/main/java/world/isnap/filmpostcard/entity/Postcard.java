@@ -32,6 +32,12 @@ public class Postcard {
     @Column(name = "file_size")
     private Long fileSize;
     
+    @Column(name = "template_type")
+    private String templateType; // postcard, bookmark, polaroid, greeting
+    
+    @Column(name = "qr_url")
+    private String qrUrl;
+    
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     

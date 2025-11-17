@@ -22,7 +22,7 @@ public class PostcardService {
     private final FileStorageService fileStorageService;
     
     @Transactional
-    public PostcardResponse createPostcard(MultipartFile image, String textContent) throws IOException {
+    public PostcardResponse createPostcard(MultipartFile image, String textContent, String templateType, String qrUrl) throws IOException {
         // Validate image
         validateImage(image);
         
@@ -35,6 +35,8 @@ public class PostcardService {
                 .textContent(textContent)
                 .originalFilename(image.getOriginalFilename())
                 .fileSize(image.getSize())
+                .templateType(templateType != null ? templateType : "postcard")
+                .qrUrl(qrUrl)
                 .build();
         
         Postcard saved = postcardRepository.save(postcard);
@@ -94,6 +96,8 @@ public class PostcardService {
                 .textContent(postcard.getTextContent())
                 .originalFilename(postcard.getOriginalFilename())
                 .fileSize(postcard.getFileSize())
+                .templateType(postcard.getTemplateType())
+                .qrUrl(postcard.getQrUrl())
                 .createdAt(postcard.getCreatedAt())
                 .build();
     }

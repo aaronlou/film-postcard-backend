@@ -11,13 +11,13 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PostcardResponse {
+public class OrderResponse {
     private Long id;
-    private String imageUrl;
-    private String textContent;
-    private String originalFilename;
-    private Long fileSize;
-    private String templateType;
-    private String qrUrl;
+    private Long postcardId;
+    private String customerName;
+    private String customerPhone;
+    private String deliveryAddress;
+    private Integer quantity;
+    private String status;
     private LocalDateTime createdAt;
 }
