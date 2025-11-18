@@ -54,8 +54,24 @@ public class PhotoService {
             }
         }
         
+        // Parse albumId if provided
+        Album album = null;
+        if (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) {
+            try {
+                Long albumIdLong = Long.parseLong(request.getAlbumId());
+                album = albumRepository.findByIdAndUser(albumIdLong, user)
+                        .orElseThrow(() -> new RuntimeException("Album not found or not owned by user"));
+                log.info("Assigning photo to album: {} ({})", album.getName(), albumIdLong);
+            } catch (NumberFormatException e) {
+                log.warn("Invalid album ID format: {}", request.getAlbumId());
+            } catch (RuntimeException e) {
+                log.warn("Album not found: {}", request.getAlbumId());
+            }
+        }
+        
         Photo photo = Photo.builder()
                 .user(user)
+                .album(album)
                 .imageUrl(request.getImageUrl())
                 .title(request.getTitle())
                 .description(request.getDescription())

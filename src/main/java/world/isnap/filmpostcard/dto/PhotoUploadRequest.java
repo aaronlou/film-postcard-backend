@@ -18,4 +18,5 @@ public class PhotoUploadRequest {
     private String lens;
     private String settings;
     private String takenAt; // ISO 8601 format
+    private String albumId; // Album ID for categorization
 }

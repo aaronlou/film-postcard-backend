@@ -14,6 +14,7 @@ import world.isnap.filmpostcard.service.AIService;
 import world.isnap.filmpostcard.service.DownloadService;
 import world.isnap.filmpostcard.service.FileStorageService;
 import world.isnap.filmpostcard.service.OrderService;
+import world.isnap.filmpostcard.service.PhotoService;
 import world.isnap.filmpostcard.service.PostcardService;
 import world.isnap.filmpostcard.service.StorageQuotaService;
 import world.isnap.filmpostcard.service.UserService;
@@ -39,11 +40,13 @@ public class PostcardController {
     private final JwtUtil jwtUtil;
     private final UserService userService;
     private final StorageQuotaService storageQuotaService;
+    private final PhotoService photoService;
     
     @PostMapping("/upload")
     public ResponseEntity<?> uploadImage(
             @RequestParam("image") MultipartFile image,
             @RequestParam(value = "type", defaultValue = "photo") String fileType,
+            @RequestParam(value = "albumId", required = false) String albumId,
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
             // Extract and validate JWT token
@@ -97,8 +100,26 @@ public class PostcardController {
             // Update user's storage usage
             storageQuotaService.incrementStorage(user, storedFile.getFileSize());
             
+            // If this is a photo type and albumId is provided, create Photo record
+            String photoId = storedFile.getRelativePath();
+            if (type == FileStorageService.FileType.PHOTO) {
+                PhotoUploadRequest photoRequest = PhotoUploadRequest.builder()
+                        .imageUrl(imageUrl)
+                        .albumId(albumId)
+                        .build();
+                
+                try {
+                    PhotoResponse photoResponse = photoService.uploadPhoto(username, photoRequest);
+                    photoId = photoResponse.getId();
+                    log.info("Photo record created: {} in album: {}", photoId, albumId);
+                } catch (RuntimeException e) {
+                    log.warn("Failed to create photo record: {}", e.getMessage());
+                    // Continue even if photo record creation fails
+                }
+            }
+            
             ImageUploadResponse response = ImageUploadResponse.builder()
-                    .id(storedFile.getRelativePath())
+                    .id(photoId)
                     .url(imageUrl)
                     .filename(storedFile.getRelativePath())
                     .fileSize(storedFile.getFileSize())
