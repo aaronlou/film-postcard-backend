@@ -149,7 +149,7 @@ public class UserService {
         }
         
         // Store new avatar in user-specific directory
-        String filename = fileStorageService.storeFile(avatar, username);
+        String filename = fileStorageService.storeFile(avatar, username, FileStorageService.FileType.AVATAR);
         user.setAvatarUrl("/api/images/" + filename);
         
         User updated = userRepository.save(user);

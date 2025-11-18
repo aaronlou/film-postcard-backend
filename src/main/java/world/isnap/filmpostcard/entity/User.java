@@ -50,6 +50,12 @@ public class User {
     @Column(name = "is_active")
     private Boolean isActive;
     
+    @Column(name = "user_tier")
+    private String userTier; // FREE, BASIC, PRO, ENTERPRISE
+    
+    @Column(name = "storage_used")
+    private Long storageUsed; // Bytes used
+    
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
@@ -62,6 +68,12 @@ public class User {
         updatedAt = LocalDateTime.now();
         if (isActive == null) {
             isActive = true;
+        }
+        if (userTier == null) {
+            userTier = "FREE";
+        }
+        if (storageUsed == null) {
+            storageUsed = 0L;
         }
     }
     

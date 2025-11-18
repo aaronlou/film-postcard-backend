@@ -8,6 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 import world.isnap.filmpostcard.dto.*;
 import world.isnap.filmpostcard.service.PhotoService;
 import world.isnap.filmpostcard.service.PostcardService;
+import world.isnap.filmpostcard.service.StorageQuotaService;
 import world.isnap.filmpostcard.service.UserService;
 import world.isnap.filmpostcard.util.JwtUtil;
 
@@ -26,6 +27,7 @@ public class UserController {
     private final PostcardService postcardService;
     private final PhotoService photoService;
     private final JwtUtil jwtUtil;
+    private final StorageQuotaService storageQuotaService;
     
     @PostMapping("/register")
     public ResponseEntity<UserProfileResponse> register(@RequestBody UserRegistrationRequest request) {
@@ -157,6 +159,50 @@ public class UserController {
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             log.error("Error uploading photo: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Bad Request", "message", e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/{username}/quota")
+    public ResponseEntity<?> getStorageQuota(
+            @PathVariable String username,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            // Verify JWT and match username
+            String authenticatedUser = extractAndVerifyUser(authHeader, username);
+            if (authenticatedUser == null) {
+                return ResponseEntity.status(403)
+                        .body(Map.of("error", "Forbidden", "message", "You can only view your own quota"));
+            }
+            
+            world.isnap.filmpostcard.entity.User user = userService.getUserEntity(username);
+            StorageQuotaService.StorageQuotaInfo quotaInfo = storageQuotaService.getQuotaInfo(user);
+            return ResponseEntity.ok(quotaInfo);
+        } catch (RuntimeException e) {
+            log.error("Error getting quota: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Bad Request", "message", e.getMessage()));
+        }
+    }
+    
+    @DeleteMapping("/{username}/photos/{photoId}")
+    public ResponseEntity<?> deletePhoto(
+            @PathVariable String username,
+            @PathVariable String photoId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            // Verify JWT and match username
+            String authenticatedUser = extractAndVerifyUser(authHeader, username);
+            if (authenticatedUser == null) {
+                return ResponseEntity.status(403)
+                        .body(Map.of("error", "Forbidden", "message", "You can only delete your own photos"));
+            }
+            
+            photoService.deletePhoto(username, photoId);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Photo deleted successfully"));
+        } catch (RuntimeException e) {
+            log.error("Error deleting photo: {}", e.getMessage());
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "Bad Request", "message", e.getMessage()));
         }

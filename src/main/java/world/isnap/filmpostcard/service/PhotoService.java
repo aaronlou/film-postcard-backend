@@ -24,6 +24,8 @@ public class PhotoService {
     
     private final PhotoRepository photoRepository;
     private final UserRepository userRepository;
+    private final FileStorageService fileStorageService;
+    private final StorageQuotaService storageQuotaService;
     
     private static final int MAX_PHOTOS_PER_USER = 50;
     
@@ -80,6 +82,52 @@ public class PhotoService {
                 .photos(photoResponses)
                 .total(photoResponses.size())
                 .build();
+    }
+    
+    @Transactional
+    public void deletePhoto(String username, String photoId) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+        
+        Long photoIdLong;
+        try {
+            photoIdLong = Long.parseLong(photoId);
+        } catch (NumberFormatException e) {
+            throw new RuntimeException("Invalid photo ID: " + photoId);
+        }
+        
+        Photo photo = photoRepository.findById(photoIdLong)
+                .orElseThrow(() -> new RuntimeException("Photo not found: " + photoId));
+        
+        // Verify ownership
+        if (!photo.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("You can only delete your own photos");
+        }
+        
+        // Extract filename from imageUrl: /api/images/username/photos/uuid.jpg -> username/photos/uuid.jpg
+        String imageUrl = photo.getImageUrl();
+        String filename = imageUrl.replace("/api/images/", "");
+        
+        try {
+            // Get file size before deletion (for storage quota update)
+            long fileSize = fileStorageService.getFileSize(filename);
+            
+            // Delete physical file
+            fileStorageService.deleteFile(filename);
+            
+            // Delete database record
+            photoRepository.delete(photo);
+            
+            // Update user's storage usage
+            if (fileSize > 0) {
+                storageQuotaService.decrementStorage(user, fileSize);
+            }
+            
+            log.info("Photo deleted: {} by user: {}, freed {} bytes", photoId, username, fileSize);
+        } catch (Exception e) {
+            log.error("Failed to delete photo file: {}", filename, e);
+            throw new RuntimeException("Failed to delete photo: " + e.getMessage());
+        }
     }
     
     private PhotoResponse toPhotoResponse(Photo photo) {

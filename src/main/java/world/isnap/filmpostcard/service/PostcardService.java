@@ -70,7 +70,7 @@ public class PostcardService {
         }
         
         // Store file in user-specific directory
-        String filename = fileStorageService.storeFile(image, username);
+        String filename = fileStorageService.storeFile(image, username, FileStorageService.FileType.POSTCARD);
         
         // Create postcard entity
         Postcard postcard = Postcard.builder()

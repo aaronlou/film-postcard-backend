@@ -15,6 +15,8 @@ import world.isnap.filmpostcard.service.DownloadService;
 import world.isnap.filmpostcard.service.FileStorageService;
 import world.isnap.filmpostcard.service.OrderService;
 import world.isnap.filmpostcard.service.PostcardService;
+import world.isnap.filmpostcard.service.StorageQuotaService;
+import world.isnap.filmpostcard.service.UserService;
 import world.isnap.filmpostcard.util.JwtUtil;
 
 import java.io.IOException;
@@ -35,10 +37,13 @@ public class PostcardController {
     private final OrderService orderService;
     private final DownloadService downloadService;
     private final JwtUtil jwtUtil;
+    private final UserService userService;
+    private final StorageQuotaService storageQuotaService;
     
     @PostMapping("/upload")
     public ResponseEntity<?> uploadImage(
             @RequestParam("image") MultipartFile image,
+            @RequestParam(value = "type", defaultValue = "photo") String fileType,
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
             // Extract and validate JWT token
@@ -65,18 +70,41 @@ public class PostcardController {
                 throw new RuntimeException("Invalid file type. Only JPG/JPEG images are allowed");
             }
             
-            // Store file in user-specific directory
-            String filename = fileStorageService.storeFile(image, username);
-            String imageUrl = "/api/images/" + filename;
+            // Determine file type from parameter
+            FileStorageService.FileType type;
+            switch (fileType.toLowerCase()) {
+                case "avatar":
+                    type = FileStorageService.FileType.AVATAR;
+                    break;
+                case "photo":
+                    type = FileStorageService.FileType.PHOTO;
+                    break;
+                case "postcard":
+                    type = FileStorageService.FileType.POSTCARD;
+                    break;
+                default:
+                    type = FileStorageService.FileType.PHOTO; // Default to photo
+            }
+            
+            // Get user entity and check quota
+            world.isnap.filmpostcard.entity.User user = userService.getUserEntity(username);
+            storageQuotaService.validateUpload(user, image.getSize());
+            
+            // Store file in user-specific directory with type subdirectory
+            FileStorageService.StoredFile storedFile = fileStorageService.storeFileWithSize(image, username, type);
+            String imageUrl = "/api/images/" + storedFile.getRelativePath();
+            
+            // Update user's storage usage
+            storageQuotaService.incrementStorage(user, storedFile.getFileSize());
             
             ImageUploadResponse response = ImageUploadResponse.builder()
-                    .id(filename)
+                    .id(storedFile.getRelativePath())
                     .url(imageUrl)
-                    .filename(filename)
-                    .fileSize(image.getSize())
+                    .filename(storedFile.getRelativePath())
+                    .fileSize(storedFile.getFileSize())
                     .build();
             
-            log.info("Image uploaded successfully: {} for user: {}", filename, username);
+            log.info("Image uploaded successfully: {} (type: {}) for user: {}", filename, type, username);
             return ResponseEntity.ok(response);
         } catch (IOException e) {
             log.error("Error uploading image", e);
@@ -198,6 +226,14 @@ public class PostcardController {
             log.error("Error deleting postcard: {}", id, e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+    
+    @GetMapping("/images/{username}/{subdir}/{filename:.+}")
+    public ResponseEntity<Resource> serveUserImageWithSubdir(
+            @PathVariable String username,
+            @PathVariable String subdir,
+            @PathVariable String filename) {
+        return serveImageInternal(username + "/" + subdir + "/" + filename);
     }
     
     @GetMapping("/images/{username}/{filename:.+}")
