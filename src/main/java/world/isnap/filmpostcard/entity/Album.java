@@ -9,12 +9,12 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "photos")
+@Table(name = "albums")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Photo {
+public class Album {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,33 +24,14 @@ public class Photo {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
     
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "album_id")
-    private Album album;
-    
-    @Column(name = "image_url", nullable = false)
-    private String imageUrl;
-    
-    @Column(name = "title")
-    private String title;
+    @Column(name = "name", nullable = false)
+    private String name;
     
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
     
-    @Column(name = "location")
-    private String location;
-    
-    @Column(name = "camera")
-    private String camera;
-    
-    @Column(name = "lens")
-    private String lens;
-    
-    @Column(name = "settings")
-    private String settings; // ISO, aperture, shutter speed
-    
-    @Column(name = "taken_at")
-    private LocalDateTime takenAt;
+    @Column(name = "cover_photo")
+    private String coverPhoto; // URL of cover image
     
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

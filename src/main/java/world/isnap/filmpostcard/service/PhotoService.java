@@ -7,8 +7,11 @@ import org.springframework.transaction.annotation.Transactional;
 import world.isnap.filmpostcard.dto.PhotoListResponse;
 import world.isnap.filmpostcard.dto.PhotoResponse;
 import world.isnap.filmpostcard.dto.PhotoUploadRequest;
+import world.isnap.filmpostcard.dto.UpdatePhotoRequest;
+import world.isnap.filmpostcard.entity.Album;
 import world.isnap.filmpostcard.entity.Photo;
 import world.isnap.filmpostcard.entity.User;
+import world.isnap.filmpostcard.repository.AlbumRepository;
 import world.isnap.filmpostcard.repository.PhotoRepository;
 import world.isnap.filmpostcard.repository.UserRepository;
 
@@ -26,6 +29,7 @@ public class PhotoService {
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
     private final StorageQuotaService storageQuotaService;
+    private final AlbumRepository albumRepository;
     
     private static final int MAX_PHOTOS_PER_USER = 50;
     
@@ -130,6 +134,79 @@ public class PhotoService {
         }
     }
     
+    @Transactional
+    public PhotoResponse updatePhoto(String username, String photoId, UpdatePhotoRequest request) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+        
+        Long photoIdLong;
+        try {
+            photoIdLong = Long.parseLong(photoId);
+        } catch (NumberFormatException e) {
+            throw new RuntimeException("Invalid photo ID: " + photoId);
+        }
+        
+        Photo photo = photoRepository.findById(photoIdLong)
+                .orElseThrow(() -> new RuntimeException("Photo not found: " + photoId));
+        
+        // Verify ownership
+        if (!photo.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("You can only update your own photos");
+        }
+        
+        // Update album association if provided
+        if (request.getAlbumId() != null) {
+            if (request.getAlbumId().isEmpty()) {
+                // Remove from album
+                photo.setAlbum(null);
+            } else {
+                // Move to specified album
+                Long albumIdLong;
+                try {
+                    albumIdLong = Long.parseLong(request.getAlbumId());
+                } catch (NumberFormatException e) {
+                    throw new RuntimeException("Invalid album ID: " + request.getAlbumId());
+                }
+                
+                Album album = albumRepository.findByIdAndUser(albumIdLong, user)
+                        .orElseThrow(() -> new RuntimeException("Album not found or not owned by user"));
+                photo.setAlbum(album);
+            }
+        }
+        
+        // Update other metadata if provided
+        if (request.getTitle() != null) {
+            photo.setTitle(request.getTitle());
+        }
+        if (request.getDescription() != null) {
+            photo.setDescription(request.getDescription());
+        }
+        if (request.getLocation() != null) {
+            photo.setLocation(request.getLocation());
+        }
+        if (request.getCamera() != null) {
+            photo.setCamera(request.getCamera());
+        }
+        if (request.getLens() != null) {
+            photo.setLens(request.getLens());
+        }
+        if (request.getSettings() != null) {
+            photo.setSettings(request.getSettings());
+        }
+        if (request.getTakenAt() != null && !request.getTakenAt().isEmpty()) {
+            try {
+                photo.setTakenAt(LocalDateTime.parse(request.getTakenAt(), DateTimeFormatter.ISO_DATE_TIME));
+            } catch (Exception e) {
+                log.warn("Failed to parse takenAt date: {}", request.getTakenAt());
+            }
+        }
+        
+        Photo updatedPhoto = photoRepository.save(photo);
+        log.info("Photo updated: {} by user: {}", photoId, username);
+        
+        return toPhotoResponse(updatedPhoto);
+    }
+    
     private PhotoResponse toPhotoResponse(Photo photo) {
         return PhotoResponse.builder()
                 .id(String.valueOf(photo.getId()))
@@ -142,6 +219,7 @@ public class PhotoService {
                 .settings(photo.getSettings())
                 .takenAt(photo.getTakenAt() != null ? photo.getTakenAt().toString() : null)
                 .createdAt(photo.getCreatedAt().toString())
+                .albumId(photo.getAlbum() != null ? String.valueOf(photo.getAlbum().getId()) : null)
                 .build();
     }
 }

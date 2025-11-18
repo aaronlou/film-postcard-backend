@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import world.isnap.filmpostcard.dto.*;
+import world.isnap.filmpostcard.service.AlbumService;
 import world.isnap.filmpostcard.service.PhotoService;
 import world.isnap.filmpostcard.service.PostcardService;
 import world.isnap.filmpostcard.service.StorageQuotaService;
@@ -28,6 +29,7 @@ public class UserController {
     private final PhotoService photoService;
     private final JwtUtil jwtUtil;
     private final StorageQuotaService storageQuotaService;
+    private final AlbumService albumService;
     
     @PostMapping("/register")
     public ResponseEntity<UserProfileResponse> register(@RequestBody UserRegistrationRequest request) {
@@ -203,6 +205,110 @@ public class UserController {
             return ResponseEntity.ok(Map.of("success", true, "message", "Photo deleted successfully"));
         } catch (RuntimeException e) {
             log.error("Error deleting photo: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Bad Request", "message", e.getMessage()));
+        }
+    }
+    
+    @PatchMapping("/{username}/photos/{photoId}")
+    public ResponseEntity<?> updatePhoto(
+            @PathVariable String username,
+            @PathVariable String photoId,
+            @RequestBody UpdatePhotoRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            // Verify JWT and match username
+            String authenticatedUser = extractAndVerifyUser(authHeader, username);
+            if (authenticatedUser == null) {
+                return ResponseEntity.status(403)
+                        .body(Map.of("error", "Forbidden", "message", "You can only update your own photos"));
+            }
+            
+            PhotoResponse response = photoService.updatePhoto(username, photoId, request);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            log.error("Error updating photo: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Bad Request", "message", e.getMessage()));
+        }
+    }
+    
+    // ========== Album Management ==========
+    
+    @GetMapping("/{username}/albums")
+    public ResponseEntity<?> getUserAlbums(@PathVariable String username) {
+        try {
+            List<AlbumResponse> albums = albumService.getUserAlbums(username);
+            return ResponseEntity.ok(albums);
+        } catch (RuntimeException e) {
+            log.error("Error getting user albums: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Bad Request", "message", e.getMessage()));
+        }
+    }
+    
+    @PostMapping("/{username}/albums")
+    public ResponseEntity<?> createAlbum(
+            @PathVariable String username,
+            @RequestBody AlbumRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            // Verify JWT and match username
+            String authenticatedUser = extractAndVerifyUser(authHeader, username);
+            if (authenticatedUser == null) {
+                return ResponseEntity.status(403)
+                        .body(Map.of("error", "Forbidden", "message", "You can only create albums for your own profile"));
+            }
+            
+            AlbumResponse response = albumService.createAlbum(username, request);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            log.error("Error creating album: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Bad Request", "message", e.getMessage()));
+        }
+    }
+    
+    @PatchMapping("/{username}/albums/{albumId}")
+    public ResponseEntity<?> updateAlbum(
+            @PathVariable String username,
+            @PathVariable String albumId,
+            @RequestBody AlbumRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            // Verify JWT and match username
+            String authenticatedUser = extractAndVerifyUser(authHeader, username);
+            if (authenticatedUser == null) {
+                return ResponseEntity.status(403)
+                        .body(Map.of("error", "Forbidden", "message", "You can only update your own albums"));
+            }
+            
+            AlbumResponse response = albumService.updateAlbum(username, albumId, request);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            log.error("Error updating album: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Bad Request", "message", e.getMessage()));
+        }
+    }
+    
+    @DeleteMapping("/{username}/albums/{albumId}")
+    public ResponseEntity<?> deleteAlbum(
+            @PathVariable String username,
+            @PathVariable String albumId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            // Verify JWT and match username
+            String authenticatedUser = extractAndVerifyUser(authHeader, username);
+            if (authenticatedUser == null) {
+                return ResponseEntity.status(403)
+                        .body(Map.of("error", "Forbidden", "message", "You can only delete your own albums"));
+            }
+            
+            albumService.deleteAlbum(username, albumId);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Album deleted successfully"));
+        } catch (RuntimeException e) {
+            log.error("Error deleting album: {}", e.getMessage());
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "Bad Request", "message", e.getMessage()));
         }

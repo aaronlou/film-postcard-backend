@@ -104,7 +104,7 @@ public class PostcardController {
                     .fileSize(storedFile.getFileSize())
                     .build();
             
-            log.info("Image uploaded successfully: {} (type: {}) for user: {}", filename, type, username);
+            log.info("Image uploaded successfully: {} (type: {}) for user: {}", storedFile.getRelativePath(), type, username);
             return ResponseEntity.ok(response);
         } catch (IOException e) {
             log.error("Error uploading image", e);
