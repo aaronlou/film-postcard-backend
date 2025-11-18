@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import world.isnap.filmpostcard.dto.PostcardResponse;
 import world.isnap.filmpostcard.entity.Postcard;
+import world.isnap.filmpostcard.entity.User;
 import world.isnap.filmpostcard.repository.PostcardRepository;
 
 import java.io.IOException;
@@ -22,9 +23,10 @@ public class PostcardService {
     
     private final PostcardRepository postcardRepository;
     private final FileStorageService fileStorageService;
+    private final UserService userService;
     
     @Transactional
-    public PostcardResponse createPostcardFromImage(String imageFilename, String textContent, String templateType, String qrUrl) throws IOException {
+    public PostcardResponse createPostcardFromImage(String imageFilename, String textContent, String templateType, String qrUrl, String username) throws IOException {
         // Validate that the image file exists
         Path imagePath = fileStorageService.getFilePath(imageFilename);
         if (!Files.exists(imagePath)) {
@@ -33,8 +35,15 @@ public class PostcardService {
         
         long fileSize = Files.size(imagePath);
         
+        // Get user if username provided
+        User user = null;
+        if (username != null && !username.isEmpty()) {
+            user = userService.getUserEntity(username);
+        }
+        
         // Create postcard entity
         Postcard postcard = Postcard.builder()
+                .user(user)
                 .imagePath(imageFilename)
                 .textContent(textContent)
                 .originalFilename(imageFilename)
@@ -50,15 +59,22 @@ public class PostcardService {
     }
     
     @Transactional
-    public PostcardResponse createPostcard(MultipartFile image, String textContent, String templateType, String qrUrl) throws IOException {
+    public PostcardResponse createPostcard(MultipartFile image, String textContent, String templateType, String qrUrl, String username) throws IOException {
         // Validate image
         validateImage(image);
         
-        // Store file
-        String filename = fileStorageService.storeFile(image);
+        // Get user if username provided
+        User user = null;
+        if (username != null && !username.isEmpty()) {
+            user = userService.getUserEntity(username);
+        }
+        
+        // Store file in user-specific directory
+        String filename = fileStorageService.storeFile(image, username);
         
         // Create postcard entity
         Postcard postcard = Postcard.builder()
+                .user(user)
                 .imagePath(filename)
                 .textContent(textContent)
                 .originalFilename(image.getOriginalFilename())
@@ -81,6 +97,14 @@ public class PostcardService {
     
     public List<PostcardResponse> getAllPostcards() {
         return postcardRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+    
+    public List<PostcardResponse> getUserPostcards(String username) {
+        User user = userService.getUserEntity(username);
+        return postcardRepository.findByUserOrderByCreatedAtDesc(user)
                 .stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -132,10 +156,33 @@ public class PostcardService {
             throw new RuntimeException("File size exceeds maximum limit of 30MB");
         }
         
-        // Check file type
+        // Check file content (Magic Bytes) - most reliable validation
+        try {
+            byte[] bytes = new byte[3];
+            file.getInputStream().read(bytes);
+            
+            // JPG files start with: FF D8 FF
+            if (!(bytes[0] == (byte) 0xFF && bytes[1] == (byte) 0xD8 && bytes[2] == (byte) 0xFF)) {
+                throw new RuntimeException("File content is not a valid JPG/JPEG image");
+            }
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to read file content");
+        }
+        
+        // Check content type - only JPG/JPEG allowed
         String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
-            throw new RuntimeException("File must be an image");
+        if (contentType == null || 
+            (!contentType.equals("image/jpeg") && !contentType.equals("image/jpg"))) {
+            throw new RuntimeException("Only JPG/JPEG images are allowed");
+        }
+        
+        // Check file extension
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename != null) {
+            String lowerFilename = originalFilename.toLowerCase();
+            if (!lowerFilename.endsWith(".jpg") && !lowerFilename.endsWith(".jpeg")) {
+                throw new RuntimeException("File must have .jpg or .jpeg extension");
+            }
         }
     }
     

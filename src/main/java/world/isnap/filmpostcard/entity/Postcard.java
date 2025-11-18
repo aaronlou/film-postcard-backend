@@ -20,6 +20,10 @@ public class Postcard {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
+    
     @Column(name = "image_path", nullable = false)
     private String imagePath;
     

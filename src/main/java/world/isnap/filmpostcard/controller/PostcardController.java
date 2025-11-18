@@ -15,10 +15,12 @@ import world.isnap.filmpostcard.service.DownloadService;
 import world.isnap.filmpostcard.service.FileStorageService;
 import world.isnap.filmpostcard.service.OrderService;
 import world.isnap.filmpostcard.service.PostcardService;
+import world.isnap.filmpostcard.util.JwtUtil;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -32,10 +34,20 @@ public class PostcardController {
     private final AIService aiService;
     private final OrderService orderService;
     private final DownloadService downloadService;
+    private final JwtUtil jwtUtil;
     
     @PostMapping("/upload")
-    public ResponseEntity<ImageUploadResponse> uploadImage(@RequestParam("image") MultipartFile image) {
+    public ResponseEntity<?> uploadImage(
+            @RequestParam("image") MultipartFile image,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
+            // Extract and validate JWT token
+            String username = extractUsernameFromToken(authHeader);
+            if (username == null) {
+                return ResponseEntity.status(401)
+                        .body(Map.of("error", "Unauthorized", "message", "Valid JWT token required"));
+            }
+            
             // Validate image
             if (image.isEmpty()) {
                 throw new RuntimeException("Image file is empty");
@@ -48,30 +60,66 @@ public class PostcardController {
             }
             
             String contentType = image.getContentType();
-            if (contentType == null || !contentType.startsWith("image/")) {
-                throw new RuntimeException("Invalid file type. Only images are allowed");
+            if (contentType == null || 
+                (!contentType.equals("image/jpeg") && !contentType.equals("image/jpg"))) {
+                throw new RuntimeException("Invalid file type. Only JPG/JPEG images are allowed");
             }
             
-            // Only store file, don't create postcard yet
-            String filename = fileStorageService.storeFile(image);
+            // Store file in user-specific directory
+            String filename = fileStorageService.storeFile(image, username);
             String imageUrl = "/api/images/" + filename;
             
             ImageUploadResponse response = ImageUploadResponse.builder()
-                    .id(filename)  // Return filename as temporary ID
+                    .id(filename)
                     .url(imageUrl)
                     .filename(filename)
                     .fileSize(image.getSize())
                     .build();
             
-            log.info("Image uploaded successfully: {}", filename);
+            log.info("Image uploaded successfully: {} for user: {}", filename, username);
             return ResponseEntity.ok(response);
         } catch (IOException e) {
             log.error("Error uploading image", e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Internal Server Error", "message", "Failed to upload image"));
         } catch (RuntimeException e) {
             log.error("Validation error: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Bad Request", "message", e.getMessage()));
         }
+    }
+    
+    /**
+     * Extract username from JWT token in Authorization header
+     * @param authHeader Authorization header (Bearer token)
+     * @return username if valid, null otherwise
+     */
+    private String extractUsernameFromToken(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.warn("Missing or invalid Authorization header");
+            return null;
+        }
+        
+        String token = authHeader.substring(7); // Remove "Bearer " prefix
+        
+        if (!jwtUtil.validateToken(token)) {
+            log.warn("Invalid JWT token");
+            return null;
+        }
+        
+        if (jwtUtil.isTokenExpired(token)) {
+            log.warn("Expired JWT token");
+            return null;
+        }
+        
+        String username = jwtUtil.getUsernameFromToken(token);
+        if (username == null) {
+            log.warn("Unable to extract username from token");
+            return null;
+        }
+        
+        log.debug("Authenticated user: {}", username);
+        return username;
     }
     
     @PostMapping("/postcards")
@@ -80,17 +128,18 @@ public class PostcardController {
             @RequestParam(value = "imageFilename", required = false) String imageFilename,
             @RequestParam(value = "text", required = false) String textContent,
             @RequestParam(value = "templateType", required = false) String templateType,
-            @RequestParam(value = "qrUrl", required = false) String qrUrl) {
+            @RequestParam(value = "qrUrl", required = false) String qrUrl,
+            @RequestParam(value = "username", required = false) String username) {
         try {
             PostcardResponse response;
             
             // Support two modes: direct upload OR use existing image
             if (image != null && !image.isEmpty()) {
                 // Mode 1: Upload new image directly
-                response = postcardService.createPostcard(image, textContent, templateType, qrUrl);
+                response = postcardService.createPostcard(image, textContent, templateType, qrUrl, username);
             } else if (imageFilename != null && !imageFilename.isEmpty()) {
                 // Mode 2: Use already uploaded image
-                response = postcardService.createPostcardFromImage(imageFilename, textContent, templateType, qrUrl);
+                response = postcardService.createPostcardFromImage(imageFilename, textContent, templateType, qrUrl, username);
             } else {
                 throw new RuntimeException("Either image or imageFilename must be provided");
             }
@@ -151,22 +200,34 @@ public class PostcardController {
         }
     }
     
+    @GetMapping("/images/{username}/{filename:.+}")
+    public ResponseEntity<Resource> serveUserImage(
+            @PathVariable String username,
+            @PathVariable String filename) {
+        return serveImageInternal(username + "/" + filename);
+    }
+    
     @GetMapping("/images/{filename:.+}")
     public ResponseEntity<Resource> serveImage(@PathVariable String filename) {
+        // Handle both old format (filename only) and new format (username/filename)
+        return serveImageInternal(filename);
+    }
+    
+    private ResponseEntity<Resource> serveImageInternal(String filePath) {
         try {
-            Path filePath = fileStorageService.getFilePath(filename);
-            Resource resource = new UrlResource(filePath.toUri());
+            Path path = fileStorageService.getFilePath(filePath);
+            Resource resource = new UrlResource(path.toUri());
             
             if (resource.exists() && resource.isReadable()) {
                 return ResponseEntity.ok()
                         .contentType(MediaType.IMAGE_JPEG)
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + path.getFileName() + "\"")
                         .body(resource);
             } else {
                 return ResponseEntity.notFound().build();
             }
         } catch (Exception e) {
-            log.error("Error serving image: {}", filename, e);
+            log.error("Error serving image: {}", filePath, e);
             return ResponseEntity.internalServerError().build();
         }
     }
