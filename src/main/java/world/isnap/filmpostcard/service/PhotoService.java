@@ -57,9 +57,15 @@ public class PhotoService {
         LocalDateTime takenAt = null;
         if (request.getTakenAt() != null && !request.getTakenAt().isEmpty()) {
             try {
+                // Try ISO_DATE_TIME format first (e.g., "2024-11-19T10:30:00")
                 takenAt = LocalDateTime.parse(request.getTakenAt(), DateTimeFormatter.ISO_DATE_TIME);
-            } catch (Exception e) {
-                log.warn("Failed to parse takenAt date: {}", request.getTakenAt());
+            } catch (Exception e1) {
+                try {
+                    // Try ISO_DATE format (e.g., "2024-11-19") and set time to midnight
+                    takenAt = LocalDateTime.parse(request.getTakenAt() + "T00:00:00", DateTimeFormatter.ISO_DATE_TIME);
+                } catch (Exception e2) {
+                    log.warn("Failed to parse takenAt date: {}", request.getTakenAt());
+                }
             }
         }
         
@@ -95,6 +101,11 @@ public class PhotoService {
                 .settings(request.getSettings())
                 .takenAt(takenAt)
                 .build();
+        
+        log.info("Creating photo with metadata - title: {}, description: {}, location: {}, camera: {}, lens: {}, settings: {}, takenAt: {}, album: {}",
+                photo.getTitle(), photo.getDescription(), photo.getLocation(), 
+                photo.getCamera(), photo.getLens(), photo.getSettings(), 
+                photo.getTakenAt(), album != null ? album.getName() : "none");
         
         Photo savedPhoto = photoRepository.save(photo);
         log.info("Photo uploaded: {} by user: {}", savedPhoto.getId(), username);
