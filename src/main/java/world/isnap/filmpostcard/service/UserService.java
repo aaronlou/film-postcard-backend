@@ -11,6 +11,7 @@ import world.isnap.filmpostcard.dto.UserLoginResponse;
 import world.isnap.filmpostcard.dto.UserProfileResponse;
 import world.isnap.filmpostcard.dto.UserRegistrationRequest;
 import world.isnap.filmpostcard.entity.User;
+import world.isnap.filmpostcard.entity.UserTier;
 import world.isnap.filmpostcard.repository.PhotoRepository;
 import world.isnap.filmpostcard.repository.PostcardRepository;
 import world.isnap.filmpostcard.repository.UserRepository;
@@ -176,6 +177,9 @@ public class UserService {
         Long designCount = postcardRepository.countByUser(user);
         Long photoCount = photoRepository.countByUser(user);
         
+        // Get user tier and quota limits
+        UserTier tier = UserTier.fromString(user.getUserTier());
+        
         return UserProfileResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
@@ -192,6 +196,12 @@ public class UserService {
                 .designCount(designCount)
                 .photoCount(photoCount)
                 .createdAt(user.getCreatedAt())
+                // Storage quota fields
+                .userTier(tier.name())
+                .storageUsed(user.getStorageUsed() != null ? user.getStorageUsed() : 0L)
+                .storageLimit(tier.getStorageLimit())
+                .photoLimit(tier.getPhotoLimit())
+                .singleFileLimit(tier.getSingleFileLimit())
                 .build();
     }
     

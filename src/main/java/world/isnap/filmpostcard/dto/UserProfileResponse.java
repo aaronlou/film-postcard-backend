@@ -27,4 +27,11 @@ public class UserProfileResponse {
     private Long designCount;
     private Long photoCount;
     private LocalDateTime createdAt;
+    
+    // Storage quota fields
+    private String userTier;           // FREE, BASIC, PRO
+    private Long storageUsed;          // Bytes used
+    private Long storageLimit;         // Total bytes allowed
+    private Integer photoLimit;        // Max photo count
+    private Long singleFileLimit;      // Max bytes per file
 }
