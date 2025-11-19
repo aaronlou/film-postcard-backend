@@ -66,16 +66,21 @@ public class PhotoService {
         // Parse albumId if provided
         Album album = null;
         if (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) {
+            log.info("Attempting to assign photo to album ID: {} for user: {}", request.getAlbumId(), username);
             try {
                 Long albumIdLong = Long.parseLong(request.getAlbumId());
                 album = albumRepository.findByIdAndUser(albumIdLong, user)
-                        .orElseThrow(() -> new RuntimeException("Album not found or not owned by user"));
+                        .orElseThrow(() -> new RuntimeException("Album not found or not owned by user: " + request.getAlbumId()));
                 log.info("Assigning photo to album: {} ({})", album.getName(), albumIdLong);
             } catch (NumberFormatException e) {
-                log.warn("Invalid album ID format: {}", request.getAlbumId());
+                log.error("Invalid album ID format: {} for user: {}", request.getAlbumId(), username, e);
+                throw new RuntimeException("Invalid album ID format: " + request.getAlbumId());
             } catch (RuntimeException e) {
-                log.warn("Album not found: {}", request.getAlbumId());
+                log.error("Album not found or not owned by user: {} for user: {}", request.getAlbumId(), username, e);
+                throw new RuntimeException("Album not found or not owned by user: " + request.getAlbumId());
             }
+        } else {
+            log.info("No album ID provided for photo upload by user: {}", username);
         }
         
         Photo photo = Photo.builder()

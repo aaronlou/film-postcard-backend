@@ -108,6 +108,7 @@ public class PostcardController {
             // If this is a photo type and albumId is provided, create Photo record
             String photoId = storedFile.getRelativePath();
             if (type == FileStorageService.FileType.PHOTO) {
+                log.info("Creating photo record for user: {} with albumId: {}", username, albumId);
                 PhotoUploadRequest photoRequest = PhotoUploadRequest.builder()
                         .imageUrl(imageUrl)
                         .albumId(albumId)
@@ -118,8 +119,9 @@ public class PostcardController {
                     photoId = photoResponse.getId();
                     log.info("Photo record created: {} in album: {}", photoId, albumId);
                 } catch (RuntimeException e) {
-                    log.warn("Failed to create photo record: {}", e.getMessage());
-                    // Continue even if photo record creation fails
+                    log.error("Failed to create photo record with album: {}", albumId, e);
+                    // Re-throw the exception to properly handle the error
+                    throw e;
                 }
             }
             
