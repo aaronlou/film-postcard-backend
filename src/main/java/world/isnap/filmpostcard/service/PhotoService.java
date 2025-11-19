@@ -36,16 +36,10 @@ public class PhotoService {
     
     @Transactional
     public PhotoResponse uploadPhoto(String username, PhotoUploadRequest request) {
+        log.info("uploadPhoto called - username: {}, request: {}", username, request);
+        
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
-        
-        // Check if photo with same imageUrl already exists for this user (prevent duplicates)
-        Optional<Photo> existingPhoto = photoRepository.findByUserAndImageUrl(user, request.getImageUrl());
-        if (existingPhoto.isPresent()) {
-            log.warn("Photo with imageUrl {} already exists for user {}, returning existing record", 
-                    request.getImageUrl(), username);
-            return toPhotoResponse(existingPhoto.get());
-        }
         
         // Check photo limit
         Long photoCount = photoRepository.countByUser(user);

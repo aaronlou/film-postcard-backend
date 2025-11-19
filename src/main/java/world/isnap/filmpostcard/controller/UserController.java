@@ -159,6 +159,13 @@ public class UserController {
             @RequestBody PhotoUploadRequest request,
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
+            // Log the incoming request
+            log.info("POST /{}/photos - Request body: {}", username, request);
+            log.info("Request details - title: {}, description: {}, location: {}, camera: {}, lens: {}, settings: {}, takenAt: {}, albumId: {}",
+                    request.getTitle(), request.getDescription(), request.getLocation(),
+                    request.getCamera(), request.getLens(), request.getSettings(),
+                    request.getTakenAt(), request.getAlbumId());
+            
             // Verify JWT and match username
             String authenticatedUser = extractAndVerifyUser(authHeader, username);
             if (authenticatedUser == null) {
@@ -167,6 +174,8 @@ public class UserController {
             }
             
             PhotoResponse response = photoService.uploadPhoto(username, request);
+            log.info("Photo created successfully - id: {}, title: {}, albumId: {}", 
+                    response.getId(), response.getTitle(), response.getAlbumId());
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             log.error("Error uploading photo: {}", e.getMessage());
