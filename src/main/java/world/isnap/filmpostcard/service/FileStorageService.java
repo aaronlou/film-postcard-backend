@@ -1,5 +1,6 @@
 package world.isnap.filmpostcard.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,25 @@ public class FileStorageService {
     
     @Value("${file.upload-dir:uploads}")
     private String uploadDir;
+    
+    @PostConstruct
+    public void init() {
+        // Convert to absolute path if it's a relative path
+        if (!Paths.get(uploadDir).isAbsolute()) {
+            uploadDir = Paths.get(".").resolve(uploadDir).toAbsolutePath().normalize().toString();
+        }
+        
+        // Ensure the base upload directory exists
+        try {
+            Path baseDir = Paths.get(uploadDir);
+            if (!Files.exists(baseDir)) {
+                Files.createDirectories(baseDir);
+                log.info("Created upload directory: {}", baseDir);
+            }
+        } catch (IOException e) {
+            log.error("Failed to create upload directory: {}", uploadDir, e);
+        }
+    }
     
     public enum FileType {
         AVATAR,   // uploads/{username}/avatar/
@@ -78,7 +98,18 @@ public class FileStorageService {
         
         // Store file - Transfer the file directly (don't use getInputStream() again)
         Path targetPath = uploadPath.resolve(filename);
-        file.transferTo(targetPath.toFile());
+        
+        // Ensure parent directories exist
+        if (!Files.exists(targetPath.getParent())) {
+            Files.createDirectories(targetPath.getParent());
+        }
+        
+        try {
+            file.transferTo(targetPath.toFile());
+        } catch (IOException e) {
+            log.error("Failed to transfer file to: {}", targetPath, e);
+            throw new IOException("Failed to save file: " + e.getMessage(), e);
+        }
         
         // Return relative path: username/subdir/filename
         String relativePath;
