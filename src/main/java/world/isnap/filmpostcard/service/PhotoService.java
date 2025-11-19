@@ -36,16 +36,32 @@ public class PhotoService {
     
     @Transactional
     public PhotoResponse uploadPhoto(String username, PhotoUploadRequest request) {
-        log.info("uploadPhoto called - username: {}, request: {}", username, request);
+        log.info("uploadPhoto called - username: {}, imageUrl: {}", username, request.getImageUrl());
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
         
-        // Check photo limit
+        // Idempotency check: if photo with same imageUrl already exists, update it instead of creating new
+        Optional<Photo> existingPhoto = photoRepository.findByUserAndImageUrl(user, request.getImageUrl());
+        if (existingPhoto.isPresent()) {
+            log.info("Photo with imageUrl {} already exists for user {}, updating with new metadata (idempotent behavior)", 
+                    request.getImageUrl(), username);
+            return updateExistingPhoto(existingPhoto.get(), request);
+        }
+        
+        // Check photo limit only for new photos
         Long photoCount = photoRepository.countByUser(user);
         if (photoCount >= MAX_PHOTOS_PER_USER) {
             throw new RuntimeException("Photo limit reached. Maximum " + MAX_PHOTOS_PER_USER + " photos per user.");
         }
+        
+        // Create new photo
+        return createNewPhoto(user, request);
+    }
+    
+    private PhotoResponse createNewPhoto(User user, PhotoUploadRequest request) {
+        log.info("Creating new photo with metadata - title: {}, location: {}, camera: {}, albumId: {}",
+                request.getTitle(), request.getLocation(), request.getCamera(), request.getAlbumId());
         
         // Parse takenAt if provided
         LocalDateTime takenAt = null;
@@ -66,21 +82,21 @@ public class PhotoService {
         // Parse albumId if provided
         Album album = null;
         if (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) {
-            log.info("Attempting to assign photo to album ID: {} for user: {}", request.getAlbumId(), username);
+            log.info("Attempting to assign photo to album ID: {} ", request.getAlbumId());
             try {
                 Long albumIdLong = Long.parseLong(request.getAlbumId());
                 album = albumRepository.findByIdAndUser(albumIdLong, user)
                         .orElseThrow(() -> new RuntimeException("Album not found or not owned by user: " + request.getAlbumId()));
                 log.info("Assigning photo to album: {} ({})", album.getName(), albumIdLong);
             } catch (NumberFormatException e) {
-                log.error("Invalid album ID format: {} for user: {}", request.getAlbumId(), username, e);
+                log.error("Invalid album ID format: {} for user: {}", request.getAlbumId(), user, e);
                 throw new RuntimeException("Invalid album ID format: " + request.getAlbumId());
             } catch (RuntimeException e) {
-                log.error("Album not found or not owned by user: {} for user: {}", request.getAlbumId(), username, e);
+                log.error("Album not found or not owned by user: {} for user: {}", request.getAlbumId(), e);
                 throw new RuntimeException("Album not found or not owned by user: " + request.getAlbumId());
             }
         } else {
-            log.info("No album ID provided for photo upload by user: {}", username);
+            log.info("No album ID provided for photo upload by user: {}");
         }
         
         Photo photo = Photo.builder()
@@ -102,9 +118,54 @@ public class PhotoService {
                 photo.getTakenAt(), album != null ? album.getName() : "none");
         
         Photo savedPhoto = photoRepository.save(photo);
-        log.info("Photo uploaded: {} by user: {}", savedPhoto.getId(), username);
+        log.info("New photo created: {} by user: {}", savedPhoto.getId(), user.getUsername());
         
         return toPhotoResponse(savedPhoto);
+    }
+    
+    private PhotoResponse updateExistingPhoto(Photo photo, PhotoUploadRequest request) {
+        log.info("Updating existing photo {} with new metadata", photo.getId());
+        
+        // Update all metadata fields
+        photo.setTitle(request.getTitle());
+        photo.setDescription(request.getDescription());
+        photo.setLocation(request.getLocation());
+        photo.setCamera(request.getCamera());
+        photo.setLens(request.getLens());
+        photo.setSettings(request.getSettings());
+        
+        // Parse and update takenAt
+        LocalDateTime takenAt = null;
+        if (request.getTakenAt() != null && !request.getTakenAt().isEmpty()) {
+            try {
+                takenAt = LocalDateTime.parse(request.getTakenAt(), DateTimeFormatter.ISO_DATE_TIME);
+            } catch (Exception e1) {
+                try {
+                    takenAt = LocalDateTime.parse(request.getTakenAt() + "T00:00:00", DateTimeFormatter.ISO_DATE_TIME);
+                } catch (Exception e2) {
+                    log.warn("Failed to parse takenAt date: {}", request.getTakenAt());
+                }
+            }
+        }
+        photo.setTakenAt(takenAt);
+        
+        // Update album
+        Album album = null;
+        if (request.getAlbumId() != null && !request.getAlbumId().isEmpty()) {
+            try {
+                Long albumIdLong = Long.parseLong(request.getAlbumId());
+                album = albumRepository.findByIdAndUser(albumIdLong, photo.getUser())
+                        .orElseThrow(() -> new RuntimeException("Album not found or not owned by user: " + request.getAlbumId()));
+            } catch (NumberFormatException e) {
+                throw new RuntimeException("Invalid album ID format: " + request.getAlbumId());
+            }
+        }
+        photo.setAlbum(album);
+        
+        Photo updatedPhoto = photoRepository.save(photo);
+        log.info("Photo {} updated successfully", updatedPhoto.getId());
+        
+        return toPhotoResponse(updatedPhoto);
     }
     
     @Transactional(readOnly = true)
