@@ -126,6 +126,15 @@ public class UserService {
         if (request.getLocation() != null) {
             user.setLocation(request.getLocation());
         }
+        if (request.getFavoriteCamera() != null) {
+            user.setFavoriteCamera(request.getFavoriteCamera());
+        }
+        if (request.getFavoriteLens() != null) {
+            user.setFavoriteLens(request.getFavoriteLens());
+        }
+        if (request.getFavoritePhotographer() != null) {
+            user.setFavoritePhotographer(request.getFavoritePhotographer());
+        }
         
         User updated = userRepository.save(user);
         log.info("User profile updated: {}", username);
@@ -177,6 +186,9 @@ public class UserService {
                 .website(user.getWebsite())
                 .xiaohongshu(user.getXiaohongshu())
                 .location(user.getLocation())
+                .favoriteCamera(user.getFavoriteCamera())
+                .favoriteLens(user.getFavoriteLens())
+                .favoritePhotographer(user.getFavoritePhotographer())
                 .designCount(designCount)
                 .photoCount(photoCount)
                 .createdAt(user.getCreatedAt())

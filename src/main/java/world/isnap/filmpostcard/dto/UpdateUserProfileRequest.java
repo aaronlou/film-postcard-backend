@@ -15,4 +15,7 @@ public class UpdateUserProfileRequest {
     private String website;
     private String xiaohongshu;
     private String location;
+    private String favoriteCamera;
+    private String favoriteLens;
+    private String favoritePhotographer;
 }

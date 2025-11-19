@@ -21,6 +21,9 @@ public class UserProfileResponse {
     private String website;
     private String xiaohongshu;
     private String location;
+    private String favoriteCamera;
+    private String favoriteLens;
+    private String favoritePhotographer;
     private Long designCount;
     private Long photoCount;
     private LocalDateTime createdAt;

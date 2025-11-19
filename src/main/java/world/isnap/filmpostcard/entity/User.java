@@ -47,6 +47,15 @@ public class User {
     @Column(name = "location")
     private String location;
     
+    @Column(name = "favorite_camera")
+    private String favoriteCamera;
+    
+    @Column(name = "favorite_lens")
+    private String favoriteLens;
+    
+    @Column(name = "favorite_photographer")
+    private String favoritePhotographer;
+    
     @Column(name = "is_active")
     private Boolean isActive;
     

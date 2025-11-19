@@ -95,6 +95,15 @@ public class UserController {
         }
     }
     
+    @PatchMapping("/{username}")
+    public ResponseEntity<?> patchProfile(
+            @PathVariable String username,
+            @RequestBody UpdateUserProfileRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        // PATCH works the same as PUT for this endpoint (partial updates are already supported)
+        return updateProfile(username, request, authHeader);
+    }
+    
     @PostMapping("/{username}/avatar")
     public ResponseEntity<?> uploadAvatar(
             @PathVariable String username,
