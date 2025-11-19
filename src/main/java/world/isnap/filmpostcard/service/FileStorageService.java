@@ -76,9 +76,9 @@ public class FileStorageService {
         }
         String filename = UUID.randomUUID().toString() + fileExtension;
         
-        // Store file
+        // Store file - Transfer the file directly (don't use getInputStream() again)
         Path targetPath = uploadPath.resolve(filename);
-        Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+        file.transferTo(targetPath.toFile());
         
         // Return relative path: username/subdir/filename
         String relativePath;

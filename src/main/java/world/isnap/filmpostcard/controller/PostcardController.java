@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/api")
@@ -42,11 +44,22 @@ public class PostcardController {
     private final StorageQuotaService storageQuotaService;
     private final PhotoService photoService;
     
+    // Cache to prevent duplicate uploads (key: username:filesize:filename, value: response)
+    private final ConcurrentHashMap<String, CachedUploadResponse> uploadCache = new ConcurrentHashMap<>();
+    
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    private static class CachedUploadResponse {
+        private ImageUploadResponse response;
+        private long timestamp;
+    }
+    
     @PostMapping("/upload")
     public ResponseEntity<?> uploadImage(
             @RequestParam("image") MultipartFile image,
             @RequestParam(value = "type", defaultValue = "photo") String fileType,
             @RequestParam(value = "albumId", required = false) String albumId,
+            @RequestParam(value = "idempotencyKey", required = false) String idempotencyKey,
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
             // Extract and validate JWT token
@@ -74,21 +87,13 @@ public class PostcardController {
             }
             
             // Determine file type from parameter
-            FileStorageService.FileType type;
-            switch (fileType.toLowerCase()) {
-                case "avatar":
-                    type = FileStorageService.FileType.AVATAR;
-                    break;
-                case "photo":
-                    type = FileStorageService.FileType.PHOTO;
-                    break;
-                case "postcard":
-                    type = FileStorageService.FileType.POSTCARD;
-                    break;
-                default:
-                    type = FileStorageService.FileType.PHOTO; // Default to photo
-            }
-            
+            FileStorageService.FileType type = switch (fileType.toLowerCase()) {
+                case "avatar" -> FileStorageService.FileType.AVATAR;
+                case "photo" -> FileStorageService.FileType.PHOTO;
+                case "postcard" -> FileStorageService.FileType.POSTCARD;
+                default -> FileStorageService.FileType.PHOTO; // Default to photo
+            };
+
             // Get user entity and check quota
             world.isnap.filmpostcard.entity.User user = userService.getUserEntity(username);
             storageQuotaService.validateUpload(user, image.getSize());
@@ -169,6 +174,19 @@ public class PostcardController {
         
         log.debug("Authenticated user: {}", username);
         return username;
+    }
+    
+    /**
+     * Clean up old cache entries to prevent memory leaks
+     */
+    private void cleanupOldCacheEntries() {
+        long currentTime = System.currentTimeMillis();
+        long maxAge = TimeUnit.SECONDS.toMillis(30);
+        
+        uploadCache.entrySet().removeIf(entry -> {
+            long age = currentTime - entry.getValue().getTimestamp();
+            return age > maxAge;
+        });
     }
     
     @PostMapping("/postcards")
