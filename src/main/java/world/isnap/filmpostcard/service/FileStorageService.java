@@ -155,6 +155,8 @@ public class FileStorageService {
         return StoredFile.builder()
                 .relativePath(relativePath)
                 .fileSize(file.getSize())
+                .relativePathThumb(relativePathThumb)    // ✅ 返回缩略图路径
+                .relativePathMedium(relativePathMedium)  // ✅ 返回中等尺寸路径
                 .build();
     }
     

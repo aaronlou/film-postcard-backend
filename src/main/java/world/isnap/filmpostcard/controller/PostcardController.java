@@ -113,13 +113,16 @@ public class PostcardController {
                 log.info("Creating photo record for user: {} with albumId: {}", username, albumId);
                 PhotoUploadRequest photoRequest = PhotoUploadRequest.builder()
                         .imageUrl(imageUrl)
+                        .imageUrlThumb(imageUrlThumb)    // ✅ 添加缩略图URL
+                        .imageUrlMedium(imageUrlMedium)  // ✅ 添加中等尺寸URL
                         .albumId(albumId)
                         .build();
                 
                 try {
                     PhotoResponse photoResponse = photoService.uploadPhoto(username, photoRequest);
                     photoId = photoResponse.getId();
-                    log.info("Photo record created: {} in album: {}", photoId, albumId);
+                    log.info("Photo record created: {} in album: {} (thumb: {}, medium: {})", 
+                            photoId, albumId, imageUrlThumb, imageUrlMedium);
                 } catch (RuntimeException e) {
                     log.error("Failed to create photo record with album: {}", albumId, e);
                     // Re-throw the exception to properly handle the error
