@@ -206,6 +206,14 @@ public class FileStorageService {
         return Paths.get(uploadDir).resolve(filename);
     }
     
+    /**
+     * Get the upload directory path
+     */
+    public String getUploadDir() {
+        return uploadDir;
+    }
+    
+    @SuppressWarnings("DuplicatedCode")
     private void validateImageType(MultipartFile file) {
         // Check file content (Magic Bytes) - most reliable
         // IMPORTANT: Use try-with-resources to auto-close the stream

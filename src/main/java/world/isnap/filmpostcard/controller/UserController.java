@@ -224,14 +224,19 @@ public class UserController {
             @PathVariable String photoId,
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
+            log.info("DELETE /{}/photos/{} - Authorization header present: {}", 
+                    username, photoId, authHeader != null && !authHeader.isEmpty());
+            
             // Verify JWT and match username
             String authenticatedUser = extractAndVerifyUser(authHeader, username);
             if (authenticatedUser == null) {
+                log.error("Authentication failed for DELETE /{}/photos/{}", username, photoId);
                 return ResponseEntity.status(403)
                         .body(Map.of("error", "Forbidden", "message", "You can only delete your own photos"));
             }
             
             photoService.deletePhoto(username, photoId);
+            log.info("Photo {} deleted successfully by user {}", photoId, username);
             return ResponseEntity.ok(Map.of("success", true, "message", "Photo deleted successfully"));
         } catch (RuntimeException e) {
             log.error("Error deleting photo: {}", e.getMessage());
@@ -352,35 +357,36 @@ public class UserController {
      */
     private String extractAndVerifyUser(String authHeader, String pathUsername) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.warn("Missing or invalid Authorization header");
+            log.warn("Missing or invalid Authorization header for user: {}", pathUsername);
             return null;
         }
         
         String token = authHeader.substring(7); // Remove "Bearer " prefix
+        log.debug("Validating JWT token for user: {}", pathUsername);
         
         if (!jwtUtil.validateToken(token)) {
-            log.warn("Invalid JWT token");
+            log.warn("Invalid JWT token for user: {}", pathUsername);
             return null;
         }
         
         if (jwtUtil.isTokenExpired(token)) {
-            log.warn("Expired JWT token");
+            log.warn("Expired JWT token for user: {}", pathUsername);
             return null;
         }
         
         String authenticatedUsername = jwtUtil.getUsernameFromToken(token);
         if (authenticatedUsername == null) {
-            log.warn("Unable to extract username from token");
+            log.warn("Unable to extract username from token for path user: {}", pathUsername);
             return null;
         }
         
         // Verify the authenticated user matches the path username
         if (!authenticatedUsername.equals(pathUsername)) {
-            log.warn("Authenticated user {} does not match path username {}", authenticatedUsername, pathUsername);
+            log.warn("Authenticated user '{}' does not match path username '{}'", authenticatedUsername, pathUsername);
             return null;
         }
         
-        log.debug("Authenticated and authorized user: {}", authenticatedUsername);
+        log.debug("Successfully authenticated and authorized user: {}", authenticatedUsername);
         return authenticatedUsername;
     }
 }

@@ -31,6 +31,7 @@ public class UserService {
     private final PostcardRepository postcardRepository;
     private final PhotoRepository photoRepository;
     private final FileStorageService fileStorageService;
+    private final ImageResizeService imageResizeService;
     private final JwtUtil jwtUtil;
     
     @Transactional
@@ -153,6 +154,7 @@ public class UserService {
             try {
                 String oldFilename = user.getAvatarUrl().replace("/api/images/", "");
                 fileStorageService.deleteFile(oldFilename);
+                log.info("Deleted old avatar: {}", oldFilename);
             } catch (Exception e) {
                 log.warn("Failed to delete old avatar", e);
             }
@@ -160,10 +162,27 @@ public class UserService {
         
         // Store new avatar in user-specific directory
         String filename = fileStorageService.storeFile(avatar, username, FileStorageService.FileType.AVATAR);
+        
+        // Compress avatar to 200x200px
+        try {
+            java.nio.file.Path originalPath = fileStorageService.getFilePath(filename);
+            java.nio.file.Path compressedPath = imageResizeService.compressAvatar(originalPath);
+            
+            // Update filename to compressed version
+            java.nio.file.Path baseUploadDir = java.nio.file.Paths.get(fileStorageService.getUploadDir());
+            String compressedFilename = baseUploadDir.relativize(compressedPath).toString().replace("\\", "/");
+            filename = compressedFilename;
+            
+            log.info("Avatar compressed successfully: {}", compressedFilename);
+        } catch (IOException e) {
+            log.error("Failed to compress avatar, using original", e);
+            // Continue with original file if compression fails
+        }
+        
         user.setAvatarUrl("/api/images/" + filename);
         
         User updated = userRepository.save(user);
-        log.info("Avatar updated for user: {}", username);
+        log.info("Avatar updated for user: {} -> {}", username, user.getAvatarUrl());
         
         return toProfileResponse(updated);
     }

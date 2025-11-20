@@ -16,6 +16,7 @@ public class ImageResizeService {
     // Image size configurations
     private static final int THUMB_WIDTH = 300;      // Thumbnail width
     private static final int MEDIUM_WIDTH = 1280;    // Medium preview width
+    private static final int AVATAR_SIZE = 200;      // Avatar size (square, 200x200px)
     private static final float QUALITY = 0.85f;       // JPEG quality (0.0 - 1.0)
     
     /**
@@ -90,6 +91,61 @@ public class ImageResizeService {
         deleteIfExists(mediumPath);
         
         log.info("Deleted image versions for: {}", originalPath);
+    }
+    
+    /**
+     * Compress and resize avatar to 200x200px square
+     * @param originalPath Path to the original avatar image
+     * @return Path to the compressed avatar
+     */
+    public Path compressAvatar(Path originalPath) throws IOException {
+        if (!Files.exists(originalPath)) {
+            throw new IOException("Original avatar file does not exist: " + originalPath);
+        }
+        
+        log.info("Compressing avatar: {}", originalPath);
+        
+        // Generate compressed avatar filename
+        String originalFileName = originalPath.getFileName().toString();
+        String baseName = originalFileName.substring(0, originalFileName.lastIndexOf('.'));
+        String extension = originalFileName.substring(originalFileName.lastIndexOf('.'));
+        
+        Path parentDir = originalPath.getParent();
+        Path compressedPath = parentDir.resolve(baseName + "_compressed" + extension);
+        
+        try {
+            // Compress avatar to 200x200px square with center crop
+            Thumbnails.of(originalPath.toFile())
+                    .size(AVATAR_SIZE, AVATAR_SIZE)
+                    .outputQuality(QUALITY)
+                    .toFile(compressedPath.toFile());
+            
+            long originalSize = Files.size(originalPath);
+            long compressedSize = Files.size(compressedPath);
+            log.info("Avatar compressed: {} -> {} (reduced by {}%)", 
+                    formatFileSize(originalSize),
+                    formatFileSize(compressedSize),
+                    (100 - (compressedSize * 100 / originalSize)));
+            
+            // Delete original file to save space
+            deleteIfExists(originalPath);
+            
+            return compressedPath;
+            
+        } catch (IOException e) {
+            log.error("Failed to compress avatar: {}", originalPath, e);
+            deleteIfExists(compressedPath);
+            throw new IOException("Failed to compress avatar: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Format file size for logging
+     */
+    private String formatFileSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
     }
     
     private void deleteIfExists(Path path) {
