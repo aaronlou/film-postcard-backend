@@ -30,7 +30,13 @@ public class Photo {
     private Album album;
     
     @Column(name = "image_url", nullable = false)
-    private String imageUrl;
+    private String imageUrl;  // Original image URL
+    
+    @Column(name = "image_url_thumb")
+    private String imageUrlThumb;  // Thumbnail (300px width, ~50KB)
+    
+    @Column(name = "image_url_medium")
+    private String imageUrlMedium;  // Medium preview (1280px width, ~200-500KB)
     
     @Column(name = "title")
     private String title;

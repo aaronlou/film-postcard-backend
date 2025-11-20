@@ -10,7 +10,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PhotoUploadRequest {
-    private String imageUrl;
+    private String imageUrl;         // Original image URL
+    private String imageUrlThumb;    // Thumbnail URL
+    private String imageUrlMedium;   // Medium preview URL
     private String title;
     private String description;
     private String location;

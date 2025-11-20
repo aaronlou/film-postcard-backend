@@ -2,8 +2,13 @@ package world.isnap.filmpostcard.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import world.isnap.filmpostcard.dto.PagedPhotoResponse;
 import world.isnap.filmpostcard.dto.PhotoListResponse;
 import world.isnap.filmpostcard.dto.PhotoResponse;
 import world.isnap.filmpostcard.dto.PhotoUploadRequest;
@@ -103,6 +108,8 @@ public class PhotoService {
                 .user(user)
                 .album(album)
                 .imageUrl(request.getImageUrl())
+                .imageUrlThumb(request.getImageUrlThumb())
+                .imageUrlMedium(request.getImageUrlMedium())
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .location(request.getLocation())
@@ -181,6 +188,45 @@ public class PhotoService {
         return PhotoListResponse.builder()
                 .photos(photoResponses)
                 .total(photoResponses.size())
+                .build();
+    }
+    
+    /**
+     * Get user photos with pagination
+     * @param username Username
+     * @param page Page number (1-based)
+     * @param pageSize Number of photos per page (default: 20)
+     * @return Paged photo response
+     */
+    @Transactional(readOnly = true)
+    public PagedPhotoResponse getUserPhotosWithPagination(String username, int page, int pageSize) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+        
+        // Validate pagination parameters
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100; // Max 100 photos per page
+        
+        // Create pageable (0-based for Spring Data)
+        Pageable pageable = PageRequest.of(page - 1, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+        
+        // Query with pagination
+        Page<Photo> photoPage = photoRepository.findByUserOrderByCreatedAtDesc(user, pageable);
+        
+        // Convert to response DTOs
+        List<PhotoResponse> photoResponses = photoPage.getContent().stream()
+                .map(this::toPhotoResponse)
+                .collect(Collectors.toList());
+        
+        return PagedPhotoResponse.builder()
+                .photos(photoResponses)
+                .currentPage(page)
+                .pageSize(pageSize)
+                .totalPhotos(photoPage.getTotalElements())
+                .totalPages(photoPage.getTotalPages())
+                .hasNext(photoPage.hasNext())
+                .hasPrevious(photoPage.hasPrevious())
                 .build();
     }
     
@@ -307,6 +353,8 @@ public class PhotoService {
         return PhotoResponse.builder()
                 .id(String.valueOf(photo.getId()))
                 .imageUrl(photo.getImageUrl())
+                .imageUrlThumb(photo.getImageUrlThumb())
+                .imageUrlMedium(photo.getImageUrlMedium())
                 .title(photo.getTitle())
                 .description(photo.getDescription())
                 .location(photo.getLocation())

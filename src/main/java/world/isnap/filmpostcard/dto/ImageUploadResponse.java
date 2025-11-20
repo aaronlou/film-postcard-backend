@@ -11,7 +11,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ImageUploadResponse {
     private String id;
-    private String url;
+    private String url;           // Original image URL
+    private String urlThumb;      // Thumbnail URL
+    private String urlMedium;     // Medium preview URL
     private String filename;
     private Long fileSize;
 }

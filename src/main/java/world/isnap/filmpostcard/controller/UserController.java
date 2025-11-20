@@ -143,10 +143,22 @@ public class UserController {
     }
     
     @GetMapping("/{username}/photos")
-    public ResponseEntity<PhotoListResponse> getUserPhotos(@PathVariable String username) {
+    public ResponseEntity<?> getUserPhotos(
+            @PathVariable String username,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "pageSize", required = false) Integer pageSize) {
         try {
-            PhotoListResponse response = photoService.getUserPhotos(username);
-            return ResponseEntity.ok(response);
+            // If pagination parameters provided, use pagination
+            if (page != null || pageSize != null) {
+                int p = (page != null) ? page : 1;
+                int ps = (pageSize != null) ? pageSize : 20;
+                PagedPhotoResponse response = photoService.getUserPhotosWithPagination(username, p, ps);
+                return ResponseEntity.ok(response);
+            } else {
+                // Legacy support: return all photos without pagination
+                PhotoListResponse response = photoService.getUserPhotos(username);
+                return ResponseEntity.ok(response);
+            }
         } catch (RuntimeException e) {
             log.error("Error getting user photos: {}", e.getMessage());
             return ResponseEntity.notFound().build();

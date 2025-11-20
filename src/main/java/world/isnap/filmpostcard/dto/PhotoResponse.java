@@ -13,7 +13,9 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class PhotoResponse {
     private String id;  // String for frontend compatibility
-    private String imageUrl;
+    private String imageUrl;  // Original image
+    private String imageUrlThumb;  // Thumbnail version
+    private String imageUrlMedium;  // Medium version
     private String title;
     private String description;
     private String location;

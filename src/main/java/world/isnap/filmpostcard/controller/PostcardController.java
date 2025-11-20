@@ -101,6 +101,8 @@ public class PostcardController {
             // Store file in user-specific directory with type subdirectory
             FileStorageService.StoredFile storedFile = fileStorageService.storeFileWithSize(image, username, type);
             String imageUrl = "/api/images/" + storedFile.getRelativePath();
+            String imageUrlThumb = storedFile.getRelativePathThumb() != null ? "/api/images/" + storedFile.getRelativePathThumb() : null;
+            String imageUrlMedium = storedFile.getRelativePathMedium() != null ? "/api/images/" + storedFile.getRelativePathMedium() : null;
             
             // Update user's storage usage
             storageQuotaService.incrementStorage(user, storedFile.getFileSize());
@@ -128,6 +130,8 @@ public class PostcardController {
             ImageUploadResponse response = ImageUploadResponse.builder()
                     .id(photoId)
                     .url(imageUrl)
+                    .urlThumb(imageUrlThumb)
+                    .urlMedium(imageUrlMedium)
                     .filename(storedFile.getRelativePath())
                     .fileSize(storedFile.getFileSize())
                     .build();

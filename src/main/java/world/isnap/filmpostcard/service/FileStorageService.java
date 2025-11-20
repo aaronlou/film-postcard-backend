@@ -20,6 +20,12 @@ public class FileStorageService {
     @Value("${file.upload-dir:uploads}")
     private String uploadDir;
     
+    private final ImageResizeService imageResizeService;
+    
+    public FileStorageService(ImageResizeService imageResizeService) {
+        this.imageResizeService = imageResizeService;
+    }
+    
     @PostConstruct
     public void init() {
         // Convert to absolute path if it's a relative path
@@ -54,6 +60,8 @@ public class FileStorageService {
     public static class StoredFile {
         private String relativePath;
         private Long fileSize;
+        private String relativePathThumb;    // Thumbnail version path
+        private String relativePathMedium;   // Medium version path
     }
     
     public String storeFile(MultipartFile file) throws IOException {
@@ -109,6 +117,23 @@ public class FileStorageService {
         } catch (IOException e) {
             log.error("Failed to transfer file to: {}", targetPath, e);
             throw new IOException("Failed to save file: " + e.getMessage(), e);
+        }
+        
+        // Generate image versions for PHOTO type
+        String relativePathThumb = null;
+        String relativePathMedium = null;
+        
+        if (fileType == FileType.PHOTO) {
+            try {
+                ImageResizeService.ImageVersions versions = imageResizeService.generateImageVersions(targetPath);
+                Path baseUploadDir = Paths.get(uploadDir);
+                relativePathThumb = versions.getThumbRelativePath(baseUploadDir);
+                relativePathMedium = versions.getMediumRelativePath(baseUploadDir);
+                log.info("Generated image versions - thumb: {}, medium: {}", relativePathThumb, relativePathMedium);
+            } catch (IOException e) {
+                log.error("Failed to generate image versions for: {}, continuing with original only", targetPath, e);
+                // Don't fail the upload if resize fails, just log the error
+            }
         }
         
         // Return relative path: username/subdir/filename
